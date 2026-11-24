@@ -1,0 +1,359 @@
+// Vehicle Maintenance App — data model
+// Database: Neon Postgres (connection URLs come from prisma.config.ts / .env)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UserRole {
+  ADMIN // full access
+  MANAGER // fleet manager: approves and tracks work orders
+  TECHNICIAN // mechanic: does the work on work orders
+  DRIVER // reports problems, records mileage
+}
+
+enum VehicleType {
+  CAR
+  PICKUP
+  VAN
+  TRUCK
+  BUS
+  MOTORCYCLE
+  OTHER
+}
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  HYBRID
+  ELECTRIC
+  LPG
+  NGV
+  OTHER
+}
+
+enum VehicleStatus {
+  ACTIVE // in normal use
+  IN_MAINTENANCE // at the garage / being repaired
+  INACTIVE // temporarily out of use
+  RETIRED // sold / scrapped
+}
+
+enum OdometerSource {
+  MANUAL // entered by a person
+  WORK_ORDER // recorded when a work order was opened or closed
+  GPS // imported from a GPS tracker
+}
+
+enum DocumentType {
+  REGISTRATION // vehicle registration book
+  ANNUAL_TAX // annual vehicle tax
+  COMPULSORY_INSURANCE // compulsory third-party insurance (Por Ror Bor)
+  VOLUNTARY_INSURANCE // voluntary motor insurance
+  INSPECTION // vehicle inspection certificate
+  OTHER
+}
+
+enum WorkOrderType {
+  PREVENTIVE // scheduled maintenance from a maintenance plan
+  CORRECTIVE // repair after a problem
+  INSPECTION // inspection
+  ACCIDENT // accident repair
+}
+
+enum WorkOrderStatus {
+  DRAFT // problem reported, not yet scheduled
+  SCHEDULED // date booked
+  IN_PROGRESS // being worked on
+  ON_HOLD // waiting for parts / approval
+  COMPLETED // done
+  CANCELLED // cancelled
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CostApprovalStatus {
+  PENDING // closed, awaiting cost approval
+  APPROVED // approved → counted as an expense / sent to accounting
+  REJECTED // not approved (with a reason)
+}
+
+enum WorkOrderItemType {
+  LABOR // labor
+  PART // part
+  OTHER // other cost
+}
+
+// ───────────────────────────── People ─────────────────────────────
+
+model User {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  email     String   @unique
+  name      String
+  phone     String?
+  role      UserRole @default(DRIVER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedVehicles   Vehicle[]         @relation("VehicleDriver")
+  reportedWorkOrders WorkOrder[]       @relation("WorkOrderReporter")
+  assignedWorkOrders WorkOrder[]       @relation("WorkOrderAssignee")
+  approvedWorkOrders WorkOrder[]       @relation("WorkOrderApprover")
+  odometerReadings   OdometerReading[]
+
+  @@map("users")
+}
+
+// ───────────────────────────── Vehicles ─────────────────────────────
+
+model Vehicle {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  plateNumber       String // license plate, e.g. "1กข 1234"
+  plateProvince     String // province on the license plate
+  vin               String?       @unique // chassis number
+  engineNumber      String?
+  brand             String
+  model             String
+  year              Int?
+  color             String?
+  type              VehicleType   @default(CAR)
+  fuelType          FuelType      @default(GASOLINE)
+  status            VehicleStatus @default(ACTIVE)
+  currentOdometerKm Int           @default(0) // latest mileage (cached for fast queries)
+  purchaseDate      DateTime?     @db.Date
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  assignedDriverId String? @db.Uuid
+  assignedDriver   User?   @relation("VehicleDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+
+  odometerReadings OdometerReading[]
+  documents        VehicleDocument[]
+  maintenancePlans MaintenancePlan[]
+  workOrders       WorkOrder[]
+
+  @@unique([plateNumber, plateProvince])
+  @@index([status])
+  @@index([assignedDriverId])
+  @@map("vehicles")
+}
+
+/// Mileage history; used to compute when distance-based maintenance is due
+model OdometerReading {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  vehicleId  String         @db.Uuid
+  readingKm  Int
+  source     OdometerSource @default(MANUAL)
+  recordedAt DateTime       @default(now())
+
+  recordedById String? @db.Uuid
+  recordedBy   User?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  vehicle      Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, recordedAt(sort: Desc)])
+  @@map("odometer_readings")
+}
+
+/// Vehicle documents with expiry dates (tax, compulsory insurance, voluntary insurance, inspection), used for renewal reminders
+model VehicleDocument {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  vehicleId      String       @db.Uuid
+  type           DocumentType
+  documentNumber String? // policy / document number
+  provider       String? // insurer / issuing authority
+  issueDate      DateTime?    @db.Date
+  expiryDate     DateTime?    @db.Date
+  cost           Decimal?     @db.Decimal(12, 2)
+  fileUrl        String? // link to the scanned file
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, type])
+  @@index([expiryDate])
+  @@map("vehicle_documents")
+}
+
+// ───────────────────────────── Maintenance catalog & plans ─────────────────────────────
+
+/// Catalog of service types, e.g. engine oil change, brake pad replacement, tire rotation
+model ServiceType {
+  id                    String   @id @default(uuid(7)) @db.Uuid
+  code                  String   @unique // e.g. "OIL_CHANGE"
+  name                  String
+  description           String?
+  defaultIntervalKm     Int? // default distance interval
+  defaultIntervalMonths Int? // default time interval
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  maintenancePlans MaintenancePlan[]
+  workOrderItems   WorkOrderItem[]
+
+  @@map("service_types")
+}
+
+/// Per-vehicle preventive maintenance plan: due by km or months, whichever comes first
+model MaintenancePlan {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  vehicleId      String    @db.Uuid
+  serviceTypeId  String    @db.Uuid
+  intervalKm     Int? // overrides ServiceType.defaultIntervalKm
+  intervalMonths Int? // overrides ServiceType.defaultIntervalMonths
+  lastServiceAt  DateTime? @db.Date
+  lastServiceKm  Int?
+  nextDueAt      DateTime? @db.Date // computed when a related work order is completed
+  nextDueKm      Int?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  vehicle     Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  workOrders  WorkOrder[]
+
+  @@unique([vehicleId, serviceTypeId])
+  @@index([nextDueAt])
+  @@map("maintenance_plans")
+}
+
+// ───────────────────────────── Garages & parts ─────────────────────────────
+
+/// Garage / service center (in-house or outside)
+model ServiceProvider {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  isInternal  Boolean  @default(false) // in-house garage
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  taxId       String? // tax ID, for invoices
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workOrders WorkOrder[]
+
+  @@map("service_providers")
+}
+
+/// Parts / consumables in stock
+model Part {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  partNumber    String   @unique
+  name          String
+  unit          String   @default("pcs") // pcs, liter, set
+  unitCost      Decimal  @default(0) @db.Decimal(12, 2)
+  stockQuantity Decimal  @default(0) @db.Decimal(12, 2)
+  reorderLevel  Decimal? @db.Decimal(12, 2) // alert when stock falls below this
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workOrderItems WorkOrderItem[]
+
+  @@map("parts")
+}
+
+// ───────────────────────────── Work orders ─────────────────────────────
+
+/// Repair / maintenance job, one per visit to the garage
+model WorkOrder {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  code        String          @unique // e.g. "WO-2026-0001"
+  vehicleId   String          @db.Uuid
+  type        WorkOrderType   @default(CORRECTIVE)
+  status      WorkOrderStatus @default(DRAFT)
+  priority    Priority        @default(MEDIUM)
+  title       String
+  description String? // symptom / details
+  odometerKm  Int? // mileage when the vehicle came in
+
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  laborCost Decimal @default(0) @db.Decimal(12, 2)
+  partsCost Decimal @default(0) @db.Decimal(12, 2)
+  otherCost Decimal @default(0) @db.Decimal(12, 2)
+  totalCost Decimal @default(0) @db.Decimal(12, 2)
+
+  invoiceNumber String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  maintenancePlanId String?          @db.Uuid // set when the job comes from a preventive plan
+  maintenancePlan   MaintenancePlan? @relation(fields: [maintenancePlanId], references: [id], onDelete: SetNull)
+
+  providerId String?          @db.Uuid
+  provider   ServiceProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+
+  reportedById String? @db.Uuid
+  reportedBy   User?   @relation("WorkOrderReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+
+  assignedToId String? @db.Uuid
+  assignedTo   User?   @relation("WorkOrderAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  items WorkOrderItem[]
+
+  // ── Cost approval (after the job is closed) → document for accounting ──
+  approvalStatus CostApprovalStatus? // null = job not closed yet
+  approvalNumber String?             @unique // e.g. "AP-2026-0001"
+  approvedAt     DateTime? // approval / rejection time
+  approvalNote   String? // approval note or rejection reason
+  expenseAccount String? // expense account code (for accounting)
+  approvedById   String?             @db.Uuid
+  approvedBy     User?               @relation("WorkOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([approvalStatus, approvedAt])
+  @@index([vehicleId, status])
+  @@index([status, scheduledAt])
+  @@index([providerId])
+  @@index([assignedToId])
+  @@map("work_orders")
+}
+
+/// Work order line item: labor, part, or other cost
+model WorkOrderItem {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  workOrderId String            @db.Uuid
+  itemType    WorkOrderItemType
+  description String
+  quantity    Decimal           @default(1) @db.Decimal(12, 2)
+  unitCost    Decimal           @default(0) @db.Decimal(12, 2)
+  totalCost   Decimal           @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime          @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  serviceTypeId String?      @db.Uuid // which service this line covers (to update the plan)
+  serviceType   ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+
+  partId String? @db.Uuid // which stock part was used
+  part   Part?   @relation(fields: [partId], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId])
+  @@index([partId])
+  @@map("work_order_items")
+}

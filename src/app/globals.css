@@ -1,26 +1,191 @@
 @import "tailwindcss";
 
+/* ─────────────── Design tokens (light) ─────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f6fb;
+  --surface: #ffffff;
+  --surface-2: #f8f9fd;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --border: #e5e8f0;
+  --ring: #6366f1;
+
+  --primary: #4f46e5;
+  --primary-2: #7c3aed;
+  --primary-fg: #ffffff;
+  --primary-soft: #eef0ff;
+
+  --success: #059669;
+  --success-soft: #e7f8f1;
+  --warning: #d97706;
+  --warning-soft: #fff5e5;
+  --danger: #e11d48;
+  --danger-soft: #ffeaf0;
+  --info: #0284c7;
+  --info-soft: #e6f5fd;
+
+  --shadow-color: 222 47% 11%;
+}
+
+/* ─────────────── Design tokens (dark) ───────────────
+   Follows the system when no theme is chosen; data-theme on <html> (from the toggle) overrides the system */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0d17;
+    --surface: #121525;
+    --surface-2: #171b2e;
+    --fg: #e7e9f3;
+    --muted: #8d94ad;
+    --border: #252a40;
+    --ring: #818cf8;
+
+    --primary: #6366f1;
+    --primary-2: #8b5cf6;
+    --primary-soft: #1d1f3d;
+
+    --success: #34d399;
+    --success-soft: #0f2a22;
+    --warning: #fbbf24;
+    --warning-soft: #2d2410;
+    --danger: #fb7185;
+    --danger-soft: #34141f;
+    --info: #38bdf8;
+    --info-soft: #0d2636;
+
+    --shadow-color: 0 0% 0%;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0d17;
+  --surface: #121525;
+  --surface-2: #171b2e;
+  --fg: #e7e9f3;
+  --muted: #8d94ad;
+  --border: #252a40;
+  --ring: #818cf8;
+
+  --primary: #6366f1;
+  --primary-2: #8b5cf6;
+  --primary-soft: #1d1f3d;
+
+  --success: #34d399;
+  --success-soft: #0f2a22;
+  --warning: #fbbf24;
+  --warning-soft: #2d2410;
+  --danger: #fb7185;
+  --danger-soft: #34141f;
+  --info: #38bdf8;
+  --info-soft: #0d2636;
+
+  --shadow-color: 0 0% 0%;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-2: var(--primary-2);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --font-sans: var(--font-thai), var(--font-latin), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --shadow-soft: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 4px 16px -4px hsl(var(--shadow-color) / 0.08);
+  --shadow-lift: 0 2px 4px hsl(var(--shadow-color) / 0.06), 0 16px 32px -8px hsl(var(--shadow-color) / 0.18);
+  --shadow-glow: 0 8px 24px -6px color-mix(in oklab, var(--primary) 55%, transparent);
+
+  --animate-fade-up: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pop: pop 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-ripple: ripple 0.6s ease-out forwards;
+  --animate-toast-in: toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes ripple {
+  from { transform: scale(0); opacity: 0.45; }
+  to { transform: scale(4); opacity: 0; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+html { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 100% -10%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, color-mix(in oklab, var(--primary-2) 7%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--fg);
+}
+
+/* Button shine sweep on hover */
+.btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.btn-shine:hover::after { transform: translateX(120%); }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Native <dialog> backdrop */
+dialog::backdrop {
+  background: rgb(10 12 25 / 0.45);
+  backdrop-filter: blur(4px);
+}
+dialog[open] { animation: var(--animate-pop); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, 40px) scale(1.08); }
+}
+
+/* Print: always white background (documents / PDF) */
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
 }
