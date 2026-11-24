@@ -5,6 +5,9 @@ import { ModalForm } from "@/components/ui/action-form";
 import { Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field";
 import { fuelType, options, vehicleType } from "@/lib/labels";
 import { userOptions } from "@/lib/queries";
+import { VehicleIdentityFields } from "./vehicle-identity-fields";
+import { Combobox } from "@/components/ui/combobox";
+import { VEHICLE_COLORS } from "@/lib/data/vehicle-colors";
 import type { ButtonVariant } from "@/components/ui/button-styles";
 
 /** "Add vehicle" button + form (loads the driver list itself) */
@@ -27,15 +30,7 @@ export async function NewVehicleButton({ variant = "primary" }: { variant?: Butt
         <Field label="ทะเบียนรถ" required>
           <Input name="plateNumber" placeholder="เช่น 1กข 1234" required autoFocus />
         </Field>
-        <Field label="จังหวัด" required>
-          <Input name="plateProvince" placeholder="เช่น กรุงเทพมหานคร" required />
-        </Field>
-        <Field label="ยี่ห้อ" required>
-          <Input name="brand" placeholder="เช่น Toyota" required />
-        </Field>
-        <Field label="รุ่น" required>
-          <Input name="model" placeholder="เช่น Hilux Revo" required />
-        </Field>
+        <VehicleIdentityFields />
         <Field label="ประเภทรถ">
           <Select name="type" options={options(vehicleType)} defaultValue="PICKUP" />
         </Field>
@@ -46,7 +41,7 @@ export async function NewVehicleButton({ variant = "primary" }: { variant?: Butt
           <Input name="year" type="number" min={1950} max={2100} placeholder="2024" />
         </Field>
         <Field label="สี">
-          <Input name="color" placeholder="เช่น ขาว" />
+          <Combobox name="color" options={VEHICLE_COLORS} placeholder="เลือกหรือพิมพ์ เช่น ขาว" />
         </Field>
         <Field label="เลขไมล์ปัจจุบัน (กม.)">
           <Input name="currentOdometerKm" type="number" min={0} placeholder="0" />
