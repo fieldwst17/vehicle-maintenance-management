@@ -4,6 +4,7 @@ import { Eye, LogIn, LogOut } from "lucide-react";
 import { exitGuestAction, signOutAction } from "@/app/actions/auth";
 import { ReadOnlyProvider } from "@/components/auth/read-only";
 import { Sidebar } from "@/components/layout/sidebar";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { Skeleton } from "@/components/ui/data";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { deniedRedirectPath, getViewer, type Viewer } from "@/lib/auth/viewer";
@@ -12,7 +13,7 @@ import { userRole } from "@/lib/labels";
 /** Layout for every page after sign-in / guest mode: sidebar + access check */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <QueryProvider>
       <Suspense fallback={<SidebarSkeleton />}>
         <AppSidebar />
       </Suspense>
@@ -23,7 +24,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Suspense>
         </div>
       </main>
-    </>
+    </QueryProvider>
   );
 }
 

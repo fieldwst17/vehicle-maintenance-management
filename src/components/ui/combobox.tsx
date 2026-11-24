@@ -3,7 +3,7 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { control } from "./field";
+import { control } from "./field-styles";
 
 /**
  * Searchable select: pick from the list, or type to filter it.

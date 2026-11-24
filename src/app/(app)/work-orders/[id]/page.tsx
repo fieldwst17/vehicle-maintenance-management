@@ -18,7 +18,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatKm, formatMoney, formatNumber } from "@/lib/format";
 import { approvalStatus, itemType, priority, workOrderStatus, workOrderType } from "@/lib/labels";
-import { partOptions, providerOptions, serviceTypeOptions, userOptions } from "@/lib/queries";
+import { providerOptions, serviceTypeOptions, userOptions } from "@/lib/queries";
 import type { WorkOrderStatus } from "@/generated/prisma/enums";
 
 export default function WorkOrderDetailPage({ params }: PageProps<"/work-orders/[id]">) {
@@ -89,7 +89,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const [wo, serviceTypes, parts, providers, technicians] = await Promise.all([
+  const [wo, serviceTypes, providers, technicians] = await Promise.all([
     prisma.workOrder.findUnique({
       where: { id },
       include: {
@@ -103,7 +103,6 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
       },
     }),
     serviceTypeOptions(),
-    partOptions(),
     providerOptions(),
     userOptions(["TECHNICIAN", "MANAGER"]),
   ]);
@@ -142,8 +141,8 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
               ) : (
                 <ActionButton action={changeWorkOrderStatus} fields={fields("ON_HOLD")} variant="secondary" size="md"><Pause />พักงาน</ActionButton>
               )}
-              <ActionButton action={changeWorkOrderStatus} fields={fields("CANCELLED")} confirm="ยืนยันยกเลิกใบสั่งงานนี้?" variant="ghost" size="md"><Ban />ยกเลิก</ActionButton>
-              <ActionButton action={changeWorkOrderStatus} fields={fields("COMPLETED")} confirm="ยืนยันปิดงาน? หลังปิดแล้วจะแก้ไขรายการไม่ได้" variant="primary" size="md"><CheckCircle2 />ปิดงาน</ActionButton>
+              <ActionButton action={changeWorkOrderStatus} fields={fields("CANCELLED")} confirm={{ title: "ยกเลิกใบสั่งงานนี้?", message: "สถานะจะเปลี่ยนเป็นยกเลิก และจะแก้ไขรายการต่อไม่ได้", confirmLabel: "ยกเลิกใบสั่งงาน", cancelLabel: "กลับ", tone: "danger" }} variant="ghost" size="md"><Ban />ยกเลิก</ActionButton>
+              <ActionButton action={changeWorkOrderStatus} fields={fields("COMPLETED")} confirm={{ title: "ปิดงานนี้?", message: "หลังปิดแล้วจะแก้ไขรายการไม่ได้ ระบบจะอัปเดตแผนบำรุงรักษาและเลขไมล์ แล้วส่งค่าใช้จ่ายไปรออนุมัติ", confirmLabel: "ปิดงาน" }} variant="primary" size="md"><CheckCircle2 />ปิดงาน</ActionButton>
             </>
           )
         }
@@ -180,7 +179,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
                       <Td className="text-right font-medium tabular-nums">{formatMoney(it.totalCost)}</Td>
                       {closed ? null : (
                         <Td className="text-right">
-                          <ActionButton action={removeWorkOrderItem} fields={{ itemId: it.id }} confirm="ลบรายการนี้?" variant="ghost" size="icon">
+                          <ActionButton action={removeWorkOrderItem} fields={{ itemId: it.id }} confirm={{ title: "ลบรายการนี้?", message: "ยอดรวมจะคำนวณใหม่ ถ้าเป็นอะไหล่จะคืนเข้าสต็อก", confirmLabel: "ลบ", tone: "danger" }} variant="ghost" size="icon">
                             <Trash2 className="text-danger" />
                           </ActionButton>
                         </Td>
@@ -193,7 +192,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
             {closed ? null : (
               <EditOnly>
                 <div className="border-t border-border p-5">
-                  <WorkOrderItemForm workOrderId={wo.id} serviceTypes={serviceTypes} parts={parts} />
+                  <WorkOrderItemForm workOrderId={wo.id} serviceTypes={serviceTypes} />
                 </div>
               </EditOnly>
             )}

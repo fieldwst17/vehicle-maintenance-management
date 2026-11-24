@@ -113,7 +113,7 @@ async function VehicleDetail({ params }: { params: PageProps<"/vehicles/[id]">["
                     key={s}
                     action={updateVehicleStatus}
                     fields={{ vehicleId: vehicle.id, status: s }}
-                    confirm={s === "RETIRED" ? "ยืนยันปลดระวางรถคันนี้?" : undefined}
+                    confirm={s === "RETIRED" ? { title: "ปลดระวางรถคันนี้?", message: "สถานะรถจะเปลี่ยนเป็นปลดระวาง เปลี่ยนกลับได้ภายหลังจากหน้านี้", confirmLabel: "ปลดระวาง", tone: "danger" } : undefined}
                     variant="secondary"
                   >
                     {vehicleStatus[s].label}

@@ -6,6 +6,10 @@ export const GUEST_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 /** Paths guests may not open: the users page (staff contact details) and the APIs */
 const GUEST_BLOCKED = ["/users", "/api"];
 
+/** APIs guests may read anyway (no sensitive data) */
+const GUEST_ALLOWED_API = ["/api/nav-badges"];
+
 export function isGuestAllowedPath(pathname: string): boolean {
+  if (GUEST_ALLOWED_API.includes(pathname)) return true;
   return !GUEST_BLOCKED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }

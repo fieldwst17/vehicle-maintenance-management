@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { navGroups } from "./nav-items";
+import { NavBadge } from "./nav-badge";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 function Brand() {
@@ -54,7 +55,8 @@ function NavLinks({ onNavigate, hiddenHrefs = [] }: { onNavigate?: () => void; h
                       )}
                     />
                     <Icon className={cn("size-[18px] transition-transform duration-200", active ? "" : "group-hover:scale-110")} />
-                    {label}
+                    <span className="flex-1">{label}</span>
+                    <NavBadge href={href} />
                   </Link>
                 </li>
               );
@@ -83,19 +85,19 @@ export function Sidebar({ userSlot, hiddenHrefs }: { userSlot?: ReactNode; hidde
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/80 px-4 py-3 backdrop-blur-xl lg:hidden">
-        <Brand />
+      <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-surface/80 px-3 py-3 backdrop-blur-xl lg:hidden">
         <button onClick={() => setOpen(true)} aria-label="เปิดเมนู" className="rounded-xl p-2 text-muted transition hover:bg-surface-2 hover:text-fg active:scale-95">
           <Menu className="size-5" />
         </button>
+        <Brand />
       </header>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer (opens from the left, the same side as the menu button) */}
       <div className={cn("fixed inset-0 z-40 lg:hidden", open ? "pointer-events-auto" : "pointer-events-none")}>
         <div onClick={() => setOpen(false)} className={cn("absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300", open ? "opacity-100" : "opacity-0")} />
         <aside
           className={cn(
-            "absolute inset-y-0 left-0 flex w-72 flex-col gap-8 overflow-y-auto bg-surface px-4 py-6 shadow-lift transition-transform duration-300 ease-out",
+            "absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-8 overflow-y-auto border-r border-border bg-surface px-4 py-6 shadow-lift transition-transform duration-300 ease-out",
             open ? "translate-x-0" : "-translate-x-full",
           )}
         >

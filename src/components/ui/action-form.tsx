@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ActionState } from "@/lib/action-state";
 import { Button } from "./button";
+import { useConfirm, type ConfirmOptions } from "./confirm-dialog";
 import type { ButtonSize, ButtonVariant } from "./button-styles";
 import { Modal } from "./modal";
 import { SubmitButton } from "./submit-button";
@@ -14,11 +16,16 @@ type Action = (state: ActionState, formData: FormData) => Promise<ActionState>;
 /** Runs `action`, shows a toast, and calls onSuccess when it returns ok */
 function useActionWithToast(action: Action, onSuccess?: () => void) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [state, formAction, pending] = useActionState(action, null);
   useEffect(() => {
     if (!state) return;
     toast({ ok: state.ok, message: state.message });
-    if (state.ok) onSuccess?.();
+    if (state.ok) {
+      // Server pages refresh themselves (refresh() in the action); client queries (badges, part stock) need a nudge
+      void queryClient.invalidateQueries();
+      onSuccess?.();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
   return { state, formAction, pending };
@@ -118,7 +125,7 @@ export function InlineForm({
   );
 }
 
-/** Single-action button (e.g. change status) with hidden fields; optional confirm before submitting */
+/** Single-action button (e.g. change status) with hidden fields; optional styled confirm dialog before submitting */
 export function ActionButton({
   action,
   fields,
@@ -129,19 +136,34 @@ export function ActionButton({
 }: {
   action: Action;
   fields: Record<string, string>;
-  confirm?: string;
+  /** A title string, or full dialog options (message, button label, tone) */
+  confirm?: string | ConfirmOptions;
   children: ReactNode;
   variant?: ButtonVariant;
   size?: ButtonSize;
 }) {
   const readOnly = useReadOnly();
   const { formAction } = useActionWithToast(action);
+  const [ask, dialog] = useConfirm();
+  const confirmed = useRef(false);
   if (readOnly) return null; // guest: hide action buttons
   return (
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+        if (!confirm || confirmed.current) {
+          confirmed.current = false;
+          return;
+        }
+        // Hold the submit, ask, then submit again for real once confirmed
+        e.preventDefault();
+        const form = e.currentTarget;
+        const options = typeof confirm === "string" ? { title: confirm, tone: variant === "danger" ? "danger" : "primary" } as const : confirm;
+        void ask(options).then((ok) => {
+          if (!ok) return;
+          confirmed.current = true;
+          form.requestSubmit();
+        });
       }}
     >
       {Object.entries(fields).map(([k, v]) => (
@@ -150,6 +172,7 @@ export function ActionButton({
       <SubmitButton variant={variant} size={size}>
         {children}
       </SubmitButton>
+      {dialog}
     </form>
   );
 }

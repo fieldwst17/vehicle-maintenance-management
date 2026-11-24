@@ -21,11 +21,6 @@ export async function providerOptions() {
   return rows.map((p) => ({ value: p.id, label: p.isInternal ? `${p.name} (ภายใน)` : p.name }));
 }
 
-export async function partOptions() {
-  const rows = await prisma.part.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, partNumber: true, stockQuantity: true, unit: true } });
-  return rows.map((p) => ({ value: p.id, label: `${p.name} [${p.partNumber}] · คงเหลือ ${Number(p.stockQuantity)} ${p.unit}` }));
-}
-
 export async function userOptions(roles?: ("ADMIN" | "MANAGER" | "TECHNICIAN" | "DRIVER")[]) {
   const rows = await prisma.user.findMany({
     where: { isActive: true, ...(roles ? { role: { in: roles } } : {}) },

@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { isPopoverEscape } from "./escape-guard";
 
 /** Native <dialog> modal: closes with Esc / backdrop click, animated open, blurred backdrop */
 export function Modal({
@@ -35,6 +36,7 @@ export function Modal({
     <dialog
       ref={ref}
       onClose={onClose}
+      onCancel={(e) => isPopoverEscape() && e.preventDefault()}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cn(
         // text-left / font-normal: reset styles the modal would inherit when opened from inside a table cell
