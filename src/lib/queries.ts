@@ -18,7 +18,7 @@ export async function serviceTypeOptions() {
 
 export async function providerOptions() {
   const rows = await prisma.serviceProvider.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, isInternal: true } });
-  return rows.map((p) => ({ value: p.id, label: p.isInternal ? `${p.name} (ภายใน)` : p.name }));
+  return rows.map((p) => ({ value: p.id, label: p.isInternal ? `${p.name} (ภายใน)` : p.name, isInternal: p.isInternal }));
 }
 
 export async function userOptions(roles?: ("ADMIN" | "MANAGER" | "TECHNICIAN" | "DRIVER")[]) {

@@ -10,6 +10,8 @@ import { EmptyState, PageHeader, StatCard, Table, TableSkeleton, Td, Th, Tr } fr
 import { Field, FormGrid, Input } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatMoney, formatNumber, toNumber } from "@/lib/format";
+import Link from "next/link";
+import { getAppSettings } from "@/lib/settings";
 
 export const metadata = { title: "อะไหล่ & สต็อก" };
 
@@ -45,6 +47,9 @@ export default function PartsPage() {
           </ModalForm>
         }
       />
+      <Suspense fallback={null}>
+        <StockOffNotice />
+      </Suspense>
       <Suspense fallback={<Card><TableSkeleton rows={8} /></Card>}>
         <List />
       </Suspense>
@@ -107,5 +112,17 @@ async function List() {
         )}
       </Card>
     </>
+  );
+}
+
+/** The company turned the stock off in settings: say so (the menu is hidden, but the page is still reachable) */
+async function StockOffNotice() {
+  await connection();
+  if ((await getAppSettings()).inventoryEnabled) return null;
+  return (
+    <p className="mb-6 rounded-2xl border border-warning/25 bg-warning-soft px-4 py-3 text-sm text-warning animate-fade-up">
+      ตอนนี้ปิดการใช้คลังอะไหล่อยู่ ใบสั่งงานจะไม่เบิกหรือตัดสต็อกจากหน้านี้ ·{" "}
+      <Link href="/settings" className="font-medium underline underline-offset-2">เปิดได้ที่ตั้งค่าระบบ</Link>
+    </p>
   );
 }

@@ -84,6 +84,12 @@ enum Priority {
   CRITICAL
 }
 
+/// Who does the repair: the company's own technicians, or an outside garage / dealer that bills the company
+enum RepairMode {
+  IN_HOUSE // own technicians (parts can come from stock)
+  EXTERNAL // outside garage / dealer: costs follow its invoice
+}
+
 enum CostApprovalStatus {
   PENDING // closed, awaiting cost approval
   APPROVED // approved → counted as an expense / sent to accounting
@@ -296,7 +302,9 @@ model WorkOrder {
   otherCost Decimal @default(0) @db.Decimal(12, 2)
   totalCost Decimal @default(0) @db.Decimal(12, 2)
 
+  repairMode    RepairMode @default(IN_HOUSE)
   invoiceNumber String?
+  invoiceDate   DateTime?  @db.Date // date on the garage's invoice / receipt
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -356,4 +364,16 @@ model WorkOrderItem {
   @@index([workOrderId])
   @@index([partId])
   @@map("work_order_items")
+}
+
+// ───────────────────────────── Settings ─────────────────────────────
+
+/// Company-wide settings: a single row (id = 1); missing row = defaults
+model AppSetting {
+  id                        Int      @id @default(1)
+  inventoryEnabled          Boolean  @default(true) // false = the company keeps no parts stock: hide stock menu, pickers and alerts
+  requireInvoiceForExternal Boolean  @default(true) // outside-garage jobs need an invoice number before they can be closed
+  updatedAt                 DateTime @updatedAt
+
+  @@map("app_settings")
 }

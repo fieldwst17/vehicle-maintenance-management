@@ -3,10 +3,11 @@ import { prisma } from "./prisma";
 import { dueState } from "./maintenance";
 import { daysFromNow } from "./format";
 import type { NavBadges } from "./query-keys";
+import { getAppSettings } from "./settings";
 
 /** Counts shown next to sidebar items: things that need someone's attention */
 export async function getNavBadges(): Promise<NavBadges> {
-  const [plans, expiringDocs, pendingApprovals, parts] = await Promise.all([
+  const [plans, expiringDocs, pendingApprovals, parts, settings] = await Promise.all([
     prisma.maintenancePlan.findMany({
       where: { isActive: true, vehicle: { status: { not: "RETIRED" } } },
       select: { nextDueKm: true, nextDueAt: true, vehicle: { select: { currentOdometerKm: true } } },
@@ -14,6 +15,7 @@ export async function getNavBadges(): Promise<NavBadges> {
     prisma.vehicleDocument.count({ where: { expiryDate: { lte: daysFromNow(30) }, vehicle: { status: { not: "RETIRED" } } } }),
     prisma.workOrder.count({ where: { status: "COMPLETED", approvalStatus: "PENDING" } }),
     prisma.part.findMany({ where: { isActive: true, reorderLevel: { not: null } }, select: { stockQuantity: true, reorderLevel: true } }),
+    getAppSettings(),
   ]);
 
   const states = plans.map((p) => dueState(p, p.vehicle.currentOdometerKm).key);
@@ -26,6 +28,6 @@ export async function getNavBadges(): Promise<NavBadges> {
     "/maintenance": badge(overdue + soon, overdue ? "danger" : "warning"),
     "/vehicles": badge(expiringDocs, "warning"),
     "/expenses": badge(pendingApprovals, "primary"),
-    "/parts": badge(lowStock, "danger"),
+    "/parts": settings.inventoryEnabled ? badge(lowStock, "danger") : undefined,
   };
 }

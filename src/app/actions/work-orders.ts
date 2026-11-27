@@ -6,7 +6,8 @@ import { fail, type ActionState } from "@/lib/action-state";
 import { date, decimal, FormError, int, oneOf, str } from "@/lib/form";
 import { computeNextDue } from "@/lib/maintenance";
 import { Prisma } from "@/generated/prisma/client";
-import { Priority, WorkOrderItemType, WorkOrderStatus, WorkOrderType } from "@/generated/prisma/enums";
+import { Priority, RepairMode, WorkOrderItemType, WorkOrderStatus, WorkOrderType } from "@/generated/prisma/enums";
+import { getAppSettings } from "@/lib/settings";
 import { AuthRequiredError, requireUser } from "@/lib/auth/current-user";
 import { run } from "./run";
 
@@ -34,6 +35,7 @@ export async function createWorkOrder(_: ActionState, fd: FormData): Promise<Act
       scheduledAt,
       status: scheduledAt ? WorkOrderStatus.SCHEDULED : WorkOrderStatus.DRAFT,
       providerId: str(fd, "providerId"),
+      repairMode: oneOf(fd, "repairMode", Object.values(RepairMode)),
       assignedToId: str(fd, "assignedToId"),
       maintenancePlanId: str(fd, "maintenancePlanId"),
       reportedById: me.id, // the signed-in user is recorded as the reporter
@@ -71,6 +73,15 @@ export async function changeWorkOrderStatus(_: ActionState, fd: FormData): Promi
     });
     if (wo.status === "COMPLETED" || wo.status === "CANCELLED") throw new FormError("ใบสั่งงานนี้ปิดไปแล้ว");
 
+    // Outside-garage job: the close form carries the invoice number/date (required unless turned off in settings)
+    let invoice: { invoiceNumber?: string; invoiceDate?: Date } = {};
+    if (status === "COMPLETED" && wo.repairMode === "EXTERNAL") {
+      invoice = { invoiceNumber: str(fd, "invoiceNumber") ?? wo.invoiceNumber ?? undefined, invoiceDate: date(fd, "invoiceDate", "วันที่ใบแจ้งหนี้") ?? wo.invoiceDate ?? undefined };
+      if (!invoice.invoiceNumber && (await getAppSettings()).requireInvoiceForExternal) {
+        throw new FormError("งานส่งอู่ภายนอก กรุณากรอกเลขที่ใบแจ้งหนี้/ใบเสร็จของอู่ก่อนปิดงาน");
+      }
+    }
+
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.workOrder.update({
@@ -81,6 +92,7 @@ export async function changeWorkOrderStatus(_: ActionState, fd: FormData): Promi
           completedAt: status === "COMPLETED" ? now : undefined,
           // Closing the job → goes to cost approval
           approvalStatus: status === "COMPLETED" ? "PENDING" : undefined,
+          ...invoice,
         },
       });
 
@@ -149,14 +161,16 @@ export async function addWorkOrderItem(_: ActionState, fd: FormData): Promise<Ac
     const wo = await prisma.workOrder.findUniqueOrThrow({ where: { id: workOrderId }, select: { status: true } });
     if (wo.status === "COMPLETED" || wo.status === "CANCELLED") throw new FormError("ใบสั่งงานนี้ปิดไปแล้ว แก้ไขรายการไม่ได้");
 
-    const part = partId ? await prisma.part.findUniqueOrThrow({ where: { id: partId } }) : null;
+    // Stock is touched only when the company keeps a stock; otherwise every part is a typed-in purchase
+    const { inventoryEnabled } = await getAppSettings();
+    const part = partId && inventoryEnabled ? await prisma.part.findUniqueOrThrow({ where: { id: partId } }) : null;
     const unitCost = decimal(fd, "unitCost", "ราคาต่อหน่วย") ?? (part ? Number(part.unitCost) : 0);
     const description = str(fd, "description") ?? part?.name;
     if (!description) throw new FormError("กรุณากรอกรายละเอียดรายการ");
 
     await prisma.$transaction(async (tx) => {
       await tx.workOrderItem.create({
-        data: { workOrderId, itemType, description, quantity, unitCost, totalCost: quantity * unitCost, partId, serviceTypeId: str(fd, "serviceTypeId") },
+        data: { workOrderId, itemType, description, quantity, unitCost, totalCost: quantity * unitCost, partId: part?.id, serviceTypeId: str(fd, "serviceTypeId") },
       });
       if (part) await tx.part.update({ where: { id: part.id }, data: { stockQuantity: { decrement: quantity } } });
       await recalcTotals(tx, workOrderId);
@@ -183,11 +197,25 @@ export async function removeWorkOrderItem(_: ActionState, fd: FormData): Promise
 export async function updateWorkOrderNotes(_: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
     const id = str(fd, "workOrderId", "ใบสั่งงาน", true);
-    const current = await prisma.workOrder.findUniqueOrThrow({ where: { id }, select: { approvalStatus: true } });
+    const current = await prisma.workOrder.findUniqueOrThrow({ where: { id }, select: { approvalStatus: true, status: true, repairMode: true } });
     if (current.approvalStatus === "APPROVED") throw new FormError("ใบสั่งงานนี้อนุมัติค่าใช้จ่ายแล้ว แก้ไขไม่ได้");
+    const closed = current.status === "COMPLETED" || current.status === "CANCELLED";
+    // The repair mode can change only while the job is open (it decides what closing requires)
+    const repairMode = closed ? current.repairMode : (oneOf(fd, "repairMode", Object.values(RepairMode)) ?? current.repairMode);
+    const invoiceNumber = str(fd, "invoiceNumber") ?? null;
+    if (current.status === "COMPLETED" && repairMode === "EXTERNAL" && !invoiceNumber && (await getAppSettings()).requireInvoiceForExternal) {
+      throw new FormError("งานส่งอู่ภายนอกที่ปิดแล้ว ต้องมีเลขที่ใบแจ้งหนี้");
+    }
     await prisma.workOrder.update({
       where: { id },
-      data: { invoiceNumber: str(fd, "invoiceNumber") ?? null, notes: str(fd, "notes") ?? null, providerId: str(fd, "providerId") ?? null, assignedToId: str(fd, "assignedToId") ?? null },
+      data: {
+        repairMode,
+        invoiceNumber,
+        invoiceDate: date(fd, "invoiceDate", "วันที่ใบแจ้งหนี้") ?? null,
+        notes: str(fd, "notes") ?? null,
+        providerId: str(fd, "providerId") ?? null,
+        assignedToId: str(fd, "assignedToId") ?? null,
+      },
     });
     return "บันทึกข้อมูลแล้ว";
   });

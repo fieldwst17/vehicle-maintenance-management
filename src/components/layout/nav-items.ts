@@ -1,4 +1,4 @@
-import { CalendarClock, Car, ClipboardList, Coins, LayoutDashboard, Package, Users, Warehouse, Wrench } from "lucide-react";
+import { CalendarClock, Car, ClipboardList, Coins, LayoutDashboard, Package, Settings, Users, Warehouse, Wrench } from "lucide-react";
 
 export const navGroups = [
   {
@@ -21,6 +21,7 @@ export const navGroups = [
       { href: "/providers", label: "อู่ / ศูนย์บริการ", icon: Warehouse },
       { href: "/parts", label: "อะไหล่ & สต็อก", icon: Package },
       { href: "/users", label: "ผู้ใช้งาน", icon: Users },
+      { href: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
     ],
   },
 ];

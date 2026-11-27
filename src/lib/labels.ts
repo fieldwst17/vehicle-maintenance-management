@@ -5,6 +5,7 @@ import type {
   FuelType,
   OdometerSource,
   Priority,
+  RepairMode,
   UserRole,
   VehicleStatus,
   VehicleType,
@@ -105,3 +106,8 @@ export const odometerSource: LabelMap<OdometerSource> = {
 export function options<T extends string>(map: LabelMap<T>) {
   return (Object.keys(map) as T[]).map((value) => ({ value, label: map[value].label }));
 }
+
+export const repairMode: LabelMap<RepairMode> = {
+  IN_HOUSE: { label: "ซ่อมเอง", tone: "primary" },
+  EXTERNAL: { label: "ส่งอู่ภายนอก", tone: "info" },
+};

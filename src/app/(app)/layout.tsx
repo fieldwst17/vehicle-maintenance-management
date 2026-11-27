@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/data";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { deniedRedirectPath, getViewer, type Viewer } from "@/lib/auth/viewer";
 import { userRole } from "@/lib/labels";
+import { getAppSettings } from "@/lib/settings";
 
 /** Layout for every page after sign-in / guest mode: sidebar + access check */
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -81,8 +82,12 @@ function SidebarSkeleton() {
 const initials = (name: string) => name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
 async function AppSidebar() {
-  const viewer = await getViewer();
-  return <Sidebar hiddenHrefs={viewer?.kind === "user" ? [] : ["/users"]} userSlot={<ViewerCard viewer={viewer} />} />;
+  const [viewer, settings] = await Promise.all([getViewer(), getAppSettings()]);
+  const hidden = [
+    ...(viewer?.kind === "user" ? [] : ["/users", "/settings"]),
+    ...(settings.inventoryEnabled ? [] : ["/parts"]), // no stock kept → no stock menu
+  ];
+  return <Sidebar hiddenHrefs={hidden} userSlot={<ViewerCard viewer={viewer} />} />;
 }
 
 function ViewerCard({ viewer }: { viewer: Viewer }) {

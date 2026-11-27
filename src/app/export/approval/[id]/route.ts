@@ -3,7 +3,7 @@ import { bahtText } from "@/lib/baht-text";
 import { addTitle, MONEY_FMT, newWorkbook, styleBody, styleHeader, styleTotal, xlsxResponse } from "@/lib/excel";
 import { getApprovalDocument } from "@/lib/expenses";
 import { formatDate, toNumber } from "@/lib/format";
-import { itemType, workOrderType } from "@/lib/labels";
+import { itemType, repairMode, workOrderType } from "@/lib/labels";
 
 // Approval document for one work order → .xlsx
 export async function GET(_: Request, ctx: RouteContext<"/export/approval/[id]">) {
@@ -22,11 +22,12 @@ export async function GET(_: Request, ctx: RouteContext<"/export/approval/[id]">
     ["ทะเบียนรถ", `${wo.vehicle.plateNumber} ${wo.vehicle.plateProvince}`],
     ["ยี่ห้อ / รุ่น", `${wo.vehicle.brand} ${wo.vehicle.model}`],
     ["หัวข้องาน", wo.title],
-    ["ประเภทงาน", workOrderType[wo.type].label],
+    ["ประเภทงาน", `${workOrderType[wo.type].label} · ${repairMode[wo.repairMode].label}`],
     ["วันที่ปิดงาน", formatDate(wo.completedAt)],
     ["อู่ / ศูนย์บริการ", wo.provider?.name ?? "—"],
     ["เลขผู้เสียภาษีของอู่", wo.provider?.taxId ?? "—"],
     ["เลขที่ใบแจ้งหนี้", wo.invoiceNumber ?? "—"],
+    ["วันที่ในใบแจ้งหนี้", formatDate(wo.invoiceDate)],
     ["รหัสบัญชีค่าใช้จ่าย", wo.expenseAccount ?? "—"],
     ["ผู้อนุมัติ", wo.approvedBy?.name ?? "—"],
     ["หมายเหตุ", wo.approvalNote ?? "—"],

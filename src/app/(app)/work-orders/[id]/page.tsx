@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { Ban, BadgeCheck, Car, Check, CheckCircle2, ChevronLeft, ClipboardList, FileSpreadsheet, FileText, Pause, Play, Receipt, Save, ShieldCheck, Trash2, CalendarCheck, XCircle } from "lucide-react";
+import { Ban, BadgeCheck, FileCheck2, Car, Check, CheckCircle2, ChevronLeft, ClipboardList, FileSpreadsheet, FileText, Pause, Play, Receipt, Save, ShieldCheck, Trash2, CalendarCheck, XCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { approveWorkOrderCost, changeWorkOrderStatus, rejectWorkOrderCost, removeWorkOrderItem, updateWorkOrderNotes } from "@/app/actions/work-orders";
 import { WorkOrderItemForm } from "@/components/forms/work-order-item-form";
@@ -16,8 +16,10 @@ import { DetailList, EmptyState, PageHeader, Skeleton, Table, Td, Th, Tr } from 
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/lib/cn";
-import { formatDateTime, formatKm, formatMoney, formatNumber } from "@/lib/format";
-import { approvalStatus, itemType, priority, workOrderStatus, workOrderType } from "@/lib/labels";
+import { formatDate, formatDateTime, formatKm, formatMoney, formatNumber, toDateInput } from "@/lib/format";
+import { approvalStatus, itemType, priority, repairMode, workOrderStatus, workOrderType } from "@/lib/labels";
+import { getAppSettings } from "@/lib/settings";
+import { RepairModeFields } from "@/components/forms/repair-mode-fields";
 import { providerOptions, serviceTypeOptions, userOptions } from "@/lib/queries";
 import type { WorkOrderStatus } from "@/generated/prisma/enums";
 
@@ -89,7 +91,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
-  const [wo, serviceTypes, providers, technicians] = await Promise.all([
+  const [wo, serviceTypes, providers, technicians, settings] = await Promise.all([
     prisma.workOrder.findUnique({
       where: { id },
       include: {
@@ -105,6 +107,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
     serviceTypeOptions(),
     providerOptions(),
     userOptions(["TECHNICIAN", "MANAGER"]),
+    getAppSettings(),
   ]);
   if (!wo) notFound();
 
@@ -113,6 +116,8 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
   const me = await getCurrentUser();
   const canApprove = me?.role === "ADMIN" || me?.role === "MANAGER";
   const fields = (status: WorkOrderStatus) => ({ workOrderId: wo.id, status });
+  const external = wo.repairMode === "EXTERNAL";
+  const closeMessage = "หลังปิดแล้วจะแก้ไขรายการไม่ได้ ระบบจะอัปเดตแผนบำรุงรักษาและเลขไมล์ แล้วส่งค่าใช้จ่ายไปรออนุมัติ";
 
   return (
     <>
@@ -142,7 +147,25 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
                 <ActionButton action={changeWorkOrderStatus} fields={fields("ON_HOLD")} variant="secondary" size="md"><Pause />พักงาน</ActionButton>
               )}
               <ActionButton action={changeWorkOrderStatus} fields={fields("CANCELLED")} confirm={{ title: "ยกเลิกใบสั่งงานนี้?", message: "สถานะจะเปลี่ยนเป็นยกเลิก และจะแก้ไขรายการต่อไม่ได้", confirmLabel: "ยกเลิกใบสั่งงาน", cancelLabel: "กลับ", tone: "danger" }} variant="ghost" size="md"><Ban />ยกเลิก</ActionButton>
-              <ActionButton action={changeWorkOrderStatus} fields={fields("COMPLETED")} confirm={{ title: "ปิดงานนี้?", message: "หลังปิดแล้วจะแก้ไขรายการไม่ได้ ระบบจะอัปเดตแผนบำรุงรักษาและเลขไมล์ แล้วส่งค่าใช้จ่ายไปรออนุมัติ", confirmLabel: "ปิดงาน" }} variant="primary" size="md"><CheckCircle2 />ปิดงาน</ActionButton>
+              {external ? (
+                // Outside garage: closing records the garage's invoice, which the approver checks against
+                <ModalForm action={changeWorkOrderStatus} triggerLabel="ปิดงาน" triggerIcon={<CheckCircle2 />} title="ปิดงาน · รับรถคืนจากอู่" description={closeMessage} icon={<FileCheck2 />} submitLabel="ปิดงาน">
+                  <input type="hidden" name="workOrderId" value={wo.id} />
+                  <input type="hidden" name="status" value="COMPLETED" />
+                  <Field label="เลขที่ใบแจ้งหนี้ / ใบเสร็จของอู่" required={settings.requireInvoiceForExternal}>
+                    <Input name="invoiceNumber" defaultValue={wo.invoiceNumber ?? ""} required={settings.requireInvoiceForExternal} placeholder="เช่น INV-2026-0456" autoFocus />
+                  </Field>
+                  <Field label="วันที่ในใบแจ้งหนี้">
+                    <Input name="invoiceDate" type="date" defaultValue={toDateInput(wo.invoiceDate ?? new Date())} />
+                  </Field>
+                  <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">
+                    ยอดที่จะส่งขออนุมัติ <span className="font-semibold tabular-nums">{formatMoney(wo.totalCost)}</span>
+                    {Number(wo.totalCost) <= 0 ? <span className="block text-xs text-warning">ยังไม่มีรายการค่าใช้จ่าย ใส่ยอดตามใบแจ้งหนี้ก่อนปิดงาน</span> : null}
+                  </p>
+                </ModalForm>
+              ) : (
+                <ActionButton action={changeWorkOrderStatus} fields={fields("COMPLETED")} confirm={{ title: "ปิดงานนี้?", message: closeMessage, confirmLabel: "ปิดงาน" }} variant="primary" size="md"><CheckCircle2 />ปิดงาน</ActionButton>
+              )}
             </>
           )
         }
@@ -158,7 +181,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
         <div className="space-y-6 lg:col-span-2">
           {/* Line items */}
           <Card className="animate-fade-up [animation-delay:60ms]">
-            <CardHeader icon={<Receipt />} title="รายการค่าใช้จ่าย" description={closed ? "ปิดงานแล้ว ไม่สามารถแก้ไขรายการได้" : "เพิ่มค่าแรง อะไหล่ และค่าใช้จ่ายอื่น ๆ"} />
+            <CardHeader icon={<Receipt />} title="รายการค่าใช้จ่าย" description={closed ? "ปิดงานแล้ว ไม่สามารถแก้ไขรายการได้" : external ? "ค่าใช้จ่ายตามใบแจ้งหนี้ของอู่" : "เพิ่มค่าแรง อะไหล่ และค่าใช้จ่ายอื่น ๆ"} />
             {wo.items.length === 0 ? (
               <EmptyState icon={<Receipt />} title="ยังไม่มีรายการ" description="ผูกรายการกับงานบริการ เพื่อให้ระบบอัปเดตแผนบำรุงรักษาเมื่อปิดงาน" />
             ) : (
@@ -171,7 +194,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
                     <Tr key={it.id}>
                       <Td>
                         <p className="font-medium">{it.description}</p>
-                        <p className="text-xs text-muted">{[it.serviceType?.name, it.part?.partNumber].filter(Boolean).join(" · ") || " "}</p>
+                        <p className="text-xs text-muted">{[it.serviceType?.name, it.part ? `เบิกจากคลัง ${it.part.partNumber}` : null].filter(Boolean).join(" · ") || " "}</p>
                       </Td>
                       <Td><LabelBadge entry={itemType[it.itemType]} dot={false} /></Td>
                       <Td className="text-right tabular-nums">{formatNumber(it.quantity)}</Td>
@@ -179,7 +202,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
                       <Td className="text-right font-medium tabular-nums">{formatMoney(it.totalCost)}</Td>
                       {closed ? null : (
                         <Td className="text-right">
-                          <ActionButton action={removeWorkOrderItem} fields={{ itemId: it.id }} confirm={{ title: "ลบรายการนี้?", message: "ยอดรวมจะคำนวณใหม่ ถ้าเป็นอะไหล่จะคืนเข้าสต็อก", confirmLabel: "ลบ", tone: "danger" }} variant="ghost" size="icon">
+                          <ActionButton action={removeWorkOrderItem} fields={{ itemId: it.id }} confirm={{ title: "ลบรายการนี้?", message: it.partId ? "ยอดรวมจะคำนวณใหม่ และอะไหล่จะคืนเข้าคลัง" : "ยอดรวมจะคำนวณใหม่", confirmLabel: "ลบ", tone: "danger" }} variant="ghost" size="icon">
                             <Trash2 className="text-danger" />
                           </ActionButton>
                         </Td>
@@ -192,7 +215,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
             {closed ? null : (
               <EditOnly>
                 <div className="border-t border-border p-5">
-                  <WorkOrderItemForm workOrderId={wo.id} serviceTypes={serviceTypes} />
+                  <WorkOrderItemForm workOrderId={wo.id} serviceTypes={serviceTypes} repairMode={wo.repairMode} inventoryEnabled={settings.inventoryEnabled} />
                 </div>
               </EditOnly>
             )}
@@ -217,7 +240,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
 
           {wo.status === "COMPLETED" ? (
             <ApprovalCard
-              wo={{ id: wo.id, approvalStatus: wo.approvalStatus, approvalNumber: wo.approvalNumber, approvedAt: wo.approvedAt, approvalNote: wo.approvalNote, expenseAccount: wo.expenseAccount, approvedBy: wo.approvedBy?.name ?? null, totalCost: formatMoney(wo.totalCost) }}
+              wo={{ id: wo.id, approvalStatus: wo.approvalStatus, approvalNumber: wo.approvalNumber, approvedAt: wo.approvedAt, approvalNote: wo.approvalNote, expenseAccount: wo.expenseAccount, approvedBy: wo.approvedBy?.name ?? null, totalCost: formatMoney(wo.totalCost), repairMode: wo.repairMode, provider: wo.provider?.name ?? null, invoiceNumber: wo.invoiceNumber, invoiceDate: wo.invoiceDate }}
               canApprove={canApprove}
             />
           ) : null}
@@ -249,6 +272,7 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
             <CardBody>
               <DetailList
                 items={[
+                  { label: "รูปแบบการซ่อม", value: <LabelBadge entry={repairMode[wo.repairMode]} dot={false} /> },
                   { label: "ประเภทงาน", value: <LabelBadge entry={workOrderType[wo.type]} dot={false} /> },
                   { label: "ความเร่งด่วน", value: <LabelBadge entry={priority[wo.priority]} /> },
                   { label: "นัดหมาย", value: formatDateTime(wo.scheduledAt) },
@@ -267,14 +291,15 @@ async function WorkOrderDetail({ params }: { params: PageProps<"/work-orders/[id
             <CardBody>
               <InlineForm action={updateWorkOrderNotes} resetOnSuccess={false} readOnlyMode="disable" className="space-y-4">
                 <input type="hidden" name="workOrderId" value={wo.id} />
-                <Field label="อู่ / ศูนย์บริการ">
-                  <Select name="providerId" options={providers} placeholder="— ไม่ระบุ —" defaultValue={wo.providerId ?? ""} />
-                </Field>
+                <RepairModeFields providers={providers} defaultMode={wo.repairMode} defaultProviderId={wo.providerId ?? ""} disabledMode={closed} />
                 <Field label="ผู้รับผิดชอบ">
                   <Select name="assignedToId" options={technicians} placeholder="— ไม่ระบุ —" defaultValue={wo.assignedToId ?? ""} />
                 </Field>
-                <Field label="เลขที่ใบแจ้งหนี้">
+                <Field label="เลขที่ใบแจ้งหนี้ / ใบเสร็จ">
                   <Input name="invoiceNumber" defaultValue={wo.invoiceNumber ?? ""} />
+                </Field>
+                <Field label="วันที่ในใบแจ้งหนี้">
+                  <Input name="invoiceDate" type="date" defaultValue={toDateInput(wo.invoiceDate)} />
                 </Field>
                 <Field label="บันทึกเพิ่มเติม">
                   <Textarea name="notes" defaultValue={wo.notes ?? ""} />
@@ -294,7 +319,11 @@ function ApprovalCard({
   wo,
   canApprove,
 }: {
-  wo: { id: string; approvalStatus: "PENDING" | "APPROVED" | "REJECTED" | null; approvalNumber: string | null; approvedAt: Date | null; approvalNote: string | null; expenseAccount: string | null; approvedBy: string | null; totalCost: string };
+  wo: {
+    id: string; approvalStatus: "PENDING" | "APPROVED" | "REJECTED" | null; approvalNumber: string | null; approvedAt: Date | null; approvalNote: string | null;
+    expenseAccount: string | null; approvedBy: string | null; totalCost: string;
+    repairMode: "IN_HOUSE" | "EXTERNAL"; provider: string | null; invoiceNumber: string | null; invoiceDate: Date | null;
+  };
   canApprove: boolean;
 }) {
   const status = wo.approvalStatus ?? "PENDING";
@@ -311,6 +340,13 @@ function ApprovalCard({
         <DetailList
           items={[
             { label: "ยอดที่ขออนุมัติ", value: wo.totalCost },
+            // What the approver checks the amount against: the garage and its invoice
+            ...(wo.repairMode === "EXTERNAL"
+              ? [
+                  { label: "อู่ที่ส่งซ่อม", value: wo.provider ?? "—" },
+                  { label: "ใบแจ้งหนี้", value: wo.invoiceNumber ? `${wo.invoiceNumber}${wo.invoiceDate ? ` · ${formatDate(wo.invoiceDate)}` : ""}` : "—" },
+                ]
+              : []),
             { label: "เลขที่ใบอนุมัติ", value: wo.approvalNumber ? <span className="font-mono">{wo.approvalNumber}</span> : "—" },
             { label: status === "REJECTED" ? "ผู้พิจารณา" : "ผู้อนุมัติ", value: wo.approvedBy ?? "—" },
             { label: "วันที่", value: formatDateTime(wo.approvedAt) },

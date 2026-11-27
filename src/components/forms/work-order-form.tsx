@@ -6,6 +6,7 @@ import { Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field"
 import type { ButtonVariant } from "@/components/ui/button-styles";
 import { options, priority, workOrderType } from "@/lib/labels";
 import { providerOptions, userOptions, vehicleOptions } from "@/lib/queries";
+import { RepairModeFields } from "./repair-mode-fields";
 
 /** "Create work order" button + form; pass vehicleId to lock it to one vehicle */
 export async function NewWorkOrderButton({
@@ -48,6 +49,7 @@ export async function NewWorkOrderButton({
       <Field label="หัวข้องาน" required>
         <Input name="title" placeholder="เช่น เปลี่ยนน้ำมันเครื่อง / เบรกมีเสียงดัง" defaultValue={defaultTitle} required autoFocus />
       </Field>
+      <RepairModeFields providers={providers} />
       <FormGrid>
         <Field label="ประเภทงาน">
           <Select name="type" options={options(workOrderType)} defaultValue={defaultType ?? "CORRECTIVE"} />
@@ -61,10 +63,7 @@ export async function NewWorkOrderButton({
         <Field label="เลขไมล์ขณะเข้ารับบริการ">
           <Input name="odometerKm" type="number" min={0} placeholder="กม." />
         </Field>
-        <Field label="อู่ / ศูนย์บริการ">
-          <Select name="providerId" options={providers} placeholder="— ไม่ระบุ —" />
-        </Field>
-        <Field label="ผู้รับผิดชอบ">
+        <Field label="ผู้รับผิดชอบ" className="sm:col-span-2">
           <Select name="assignedToId" options={technicians} placeholder="— ไม่ระบุ —" />
         </Field>
       </FormGrid>

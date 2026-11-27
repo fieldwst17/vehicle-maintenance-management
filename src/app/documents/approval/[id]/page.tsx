@@ -7,7 +7,7 @@ import { deniedRedirectPath, getViewer } from "@/lib/auth/viewer";
 import { bahtText } from "@/lib/baht-text";
 import { getApprovalDocument } from "@/lib/expenses";
 import { formatDate, formatKm, formatMoney, formatNumber, toNumber } from "@/lib/format";
-import { itemType, workOrderType } from "@/lib/labels";
+import { itemType, repairMode, workOrderType } from "@/lib/labels";
 
 export const metadata = { title: "ใบอนุมัติค่าใช้จ่าย" };
 
@@ -57,12 +57,12 @@ async function ApprovalDocument({ params }: { params: PageProps<"/documents/appr
           <InfoGrid
             items={[
               { label: "หัวข้องาน", value: wo.title },
-              { label: "ประเภทงาน", value: workOrderType[wo.type].label },
+              { label: "ประเภทงาน", value: `${workOrderType[wo.type].label} · ${repairMode[wo.repairMode].label}` },
               { label: "วันที่เริ่มงาน", value: formatDate(wo.startedAt) },
               { label: "วันที่ปิดงาน", value: formatDate(wo.completedAt) },
               { label: "อู่ / ศูนย์บริการ", value: wo.provider?.name ?? "—" },
               { label: "เลขผู้เสียภาษีของอู่", value: wo.provider?.taxId ?? "—" },
-              { label: "เลขที่ใบแจ้งหนี้", value: wo.invoiceNumber ?? "—" },
+              { label: "เลขที่ใบแจ้งหนี้", value: wo.invoiceNumber ? `${wo.invoiceNumber}${wo.invoiceDate ? ` (${formatDate(wo.invoiceDate)})` : ""}` : "—" },
               { label: "ผู้รับผิดชอบ", value: wo.assignedTo?.name ?? "—" },
             ]}
           />
